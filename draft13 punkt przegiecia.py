@@ -257,78 +257,125 @@ class DocumentationFrame(HydroFrame):
         # Implementacja obliczeń dla ekranu Dokumentacja
         pass
 
-
 class PumpingTestFrame(HydroFrame):
     def __init__(self, master):
         super().__init__(master)
         self.create_widgets()
+        self.data = None
 
     def create_widgets(self):
         self.load_data_button = tk.Button(self, text="Wczytaj dane z pliku", command=self.load_data)
         self.load_data_button.pack()
 
-        self.convert_button = tk.Button(self, text="Konwertuj dane", command=self.convert_data)
-        self.convert_button.pack()
+        self.draw_chart_button = tk.Button(self, text="Narysuj wykres", command=self.draw_chart)
+        self.draw_chart_button.pack()
 
-        self.data = None  # Inicjalizacja zmiennej data
+        self.data_entry_frame = tk.Frame(self)
+        self.data_entry_frame.pack(side="right", padx=10, pady=10, fill="both", expand=True)
 
-        # Kontener dla tabeli z marginesem z lewej strony
-        table_container = tk.Frame(self)
-        table_container.pack(fill="both", expand=True)
+        self.label_wydajnosc_pompowania = tk.Label(self.data_entry_frame, text="Wydajność pompowania pomiarowego:")
+        self.label_wydajnosc_pompowania.pack()
+        self.entry_wydajnosc_pompowania = tk.Entry(self.data_entry_frame)
+        self.entry_wydajnosc_pompowania.pack()
+
+        self.label_depresja_rzeczywista = tk.Label(self.data_entry_frame, text="Depresja rzeczywista w studni:")
+        self.label_depresja_rzeczywista.pack()
+        self.entry_depresja_rzeczywista = tk.Entry(self.data_entry_frame)
+        self.entry_depresja_rzeczywista.pack()
+
+        self.label_miazszosc_warstwy = tk.Label(self.data_entry_frame, text="Miąższość warstwy wodonośnej:")
+        self.label_miazszosc_warstwy.pack()
+        self.entry_miazszosc_warstwy = tk.Entry(self.data_entry_frame)
+        self.entry_miazszosc_warstwy.pack()
+
+        self.label_parametrC = tk.Label(self.data_entry_frame, text="Parametr C:")
+        self.label_parametrC.pack()
+        self.entry_parametrC = tk.Entry(self.data_entry_frame)
+        self.entry_parametrC.pack()
+
+        self.calculate_button = tk.Button(self.data_entry_frame, text="Oblicz", command=self.calculate)
+        self.calculate_button.pack()
+
+        # Data table frame
+        data_table_frame = tk.Frame(self)
+        data_table_frame.pack(fill="both", expand=True)
 
         # Margines z lewej strony
-        left_margin = tk.Label(table_container, text="", width=10)
+        left_margin = tk.Label(data_table_frame, text="", width=10)
         left_margin.pack(side="left", fill="y")
 
-        self.data_table_scroll = tk.Scrollbar(table_container, orient="vertical")
-        self.data_table_scroll.pack(side="right", fill="y")
+        self.data_table = ttk.Treeview(data_table_frame, columns=("Czas", "Depresja_opad", "Depresja_wznios"))
+        self.data_table.heading("Czas", text="Czas")
+        self.data_table.heading("Depresja_opad", text="Depresja opad")
+        self.data_table.heading("Depresja_wznios", text="Depresja wznios")
+        self.data_table.pack(side="left", fill="both", expand=True)
 
-        self.data_table = ttk.Treeview(table_container, yscrollcommand=self.data_table_scroll.set)
-        self.data_table["columns"] = ("#", "Date", "Time", "ms", "LEVEL", "TEMPERATURE")
-        self.data_table.heading("#1", text="#")
-        self.data_table.heading("#2", text="Date")
-        self.data_table.heading("#3", text="Time")
-        self.data_table.heading("#4", text="ms")
-        self.data_table.heading("#5", text="LEVEL")
-        self.data_table.heading("#6", text="TEMPERATURE")
-        self.data_table.pack(fill="both", expand=True)
-
-        self.data_table_scroll.config(command=self.data_table.yview)
-
-        # Etykieta do wyświetlania 11 pierwszych wierszy z pierwszej kolumny
-        self.first_11_rows_label = tk.Label(self, text="")
-        self.first_11_rows_label.pack()
-
-        # Etykieta i pole tekstowe do wyboru zakresu wierszy do konwersji
-        self.range_label = tk.Label(self, text="Wybierz zakres wierszy do konwersji (np. 5-10):")
-        self.range_label.pack()
-        self.range_entry = tk.Entry(self)
-        self.range_entry.pack()
-
-        # Etykieta i pole tekstowe do wprowadzenia początkowego zwierciadła wody
-        self.poczatkowe_zwierciadlo_label = tk.Label(self, text="Początkowe zwierciadło wody [m]:")
-        self.poczatkowe_zwierciadlo_label.pack()
-        self.poczatkowe_zwierciadlo_entry = tk.Entry(self)
-        self.poczatkowe_zwierciadlo_entry.pack()
-
-        # Etykieta i pole tekstowe do wprowadzenia czasu początkowego
-        self.czas_poczatkowy_label = tk.Label(self, text="Czas początkowy [s]:")
-        self.czas_poczatkowy_label.pack()
-        self.czas_poczatkowy_entry = tk.Entry(self)
-        self.czas_poczatkowy_entry.pack()
-
+        self.result_label = tk.Label(self.data_entry_frame, text="")
+        self.result_label.pack()
 
     def load_data(self):
         file_path = filedialog.askopenfilename(
             filetypes=[("Pliki CSV", "*.csv"), ("Pliki Excel", "*.xlsx"), ("Pliki TXT", "*.txt")])
         if file_path:
             try:
-                self.data = pd.read_csv(file_path, encoding="ISO-8859-1", parse_dates=[1], header=None, names=["Date", "Time", "ms", "LEVEL", "TEMPERATURE"], skiprows=11)  # Wczytaj dane z pliku CSV
-                self.data["#"] = range(1, len(self.data) + 1)  # Dodaj numerację porządkową
+                self.data = pd.read_csv(file_path)
                 messagebox.showinfo("Sukces", "Dane wczytane pomyślnie.")
-                self.display_data()  # Wywołaj funkcję do wyświetlenia danych w tabeli
+                self.display_data()
             except Exception as e:
                 messagebox.showerror("Błąd", f"Błąd wczytywania danych: {str(e)}")
+
+    def draw_chart(self):
+        if self.data is not None:
+            plt.scatter(self.data["Czas"], self.data["Depresja_roznica_opad"], label='opad')
+            plt.scatter(self.data["Czas"], self.data["Depresja_roznica_wznios"], label='wznios')
+
+            # Zaznacz punkt przegięcia na wykresie dla depresja_opad
+            punkt_przegiecia_opad = self.find_inflection_point(self.data["Czas"], self.data["Depresja_roznica_opad"])
+            if punkt_przegiecia_opad:
+                czas_opad, depresja_opad = punkt_przegiecia_opad
+                plt.scatter(czas_opad, depresja_opad, color='red', label='Punkt przegięcia opad')
+                result_text_opad = f'Punkt przegięcia opad: Czas={czas_opad}, Depresja_opad={depresja_opad:.2f}'
+                self.result_label.config(text=result_text_opad)
+                print(result_text_opad)
+
+                # Dodaj etykietę (annotation) z wartością punktu przegięcia opad
+                plt.annotate(
+                    f'Punkt przegięcia opad: Depresja_opad={depresja_opad:.2f}',
+                    (czas_opad, depresja_opad),
+                    textcoords="offset points", xytext=(0, 10), ha='center')
+
+            # Zaznacz punkt przegięcia na wykresie dla depresja_wznios
+            punkt_przegiecia_wznios = self.find_inflection_point(self.data["Czas"],
+                                                                 self.data["Depresja_roznica_wznios"])
+            if punkt_przegiecia_wznios:
+                czas_wznios, depresja_wznios = punkt_przegiecia_wznios
+                plt.scatter(czas_wznios, depresja_wznios, color='green', label='Punkt przegięcia wznios')
+                result_text_wznios = f'Punkt przegięcia wznios: Czas={czas_wznios}, Depresja_wznios={depresja_wznios:.2f}'
+                self.result_label.config(text=result_text_wznios)
+                print(result_text_wznios)
+
+                # Dodaj etykietę (annotation) z wartością punktu przegięcia wznios
+                plt.annotate(
+                    f'Punkt przegięcia wznios: Depresja_wznios={depresja_wznios:.2f}',
+                    (czas_wznios, depresja_wznios),
+                    textcoords="offset points", xytext=(0, 10), ha='center')
+
+            plt.xlabel("Czas t [h]")
+            plt.ylabel("Depresja [m]")
+            plt.title("Wykres depresji zwierciadła wody w czasie (na podstawie Depresja_roznica)")
+            plt.legend()
+            plt.xscale('log')  # Ustaw skalę logarytmiczną na osi X
+            plt.grid(True)  # Dodaj siatkę na wykresie
+            plt.grid(which='both', linestyle='--', linewidth=0.5)
+            plt.show()
+        else:
+            messagebox.showerror("Błąd", "Wczytaj dane przed narysowaniem wykresu.")
+
+    def find_inflection_point(self, x, y):
+        for i in range(1, len(y) - 1):
+            if y[i - 1] > y[i] < y[i + 1]:
+                return x[i], y[i]
+        return None
 
     def display_data(self):
         # Wyczyść tabelę
@@ -338,78 +385,20 @@ class PumpingTestFrame(HydroFrame):
         # Wstaw dane do tabeli
         for i, row in self.data.iterrows():
             self.data_table.insert("", "end",
-                                   values=(row["#"], row["Date"], row["Time"], row["ms"], row["LEVEL"], row["TEMPERATURE"]))
+                                   values=(row["Czas"], row["Depresja_roznica_opad"], row["Depresja_roznica_wznios"]))
 
-    def convert_data(self):
-        if self.data is not None:
-            # Pobierz zakres wierszy do konwersji
-            range_str = self.range_entry.get()
-            try:
-                start, end = map(int, range_str.split("-"))
-                if start < 1 or end > len(self.data):
-                    raise ValueError("Nieprawidłowy zakres wierszy.")
-            except ValueError as e:
-                messagebox.showerror("Błąd", f"Nieprawidłowy zakres wierszy: {str(e)}")
-                return
+    def calculate(self):
+        wydajnosc_pompowania = float(self.entry_wydajnosc_pompowania.get())
+        depresja_rzeczywista = float(self.entry_depresja_rzeczywista.get())
+        miazszosc_warstwy = float(self.entry_miazszosc_warstwy.get())
+        parametrC = float(self.entry_parametrC.get())
 
-            # Pobierz wartość początkowego zwierciadła wody i przekształć ją na float
-            poczatkowe_zwierciadlo_str = self.poczatkowe_zwierciadlo_entry.get()
-            try:
-                poczatkowe_zwierciadlo = float(poczatkowe_zwierciadlo_str)
-            except ValueError:
-                messagebox.showerror("Błąd", "Nieprawidłowa wartość początkowego zwierciadła wody.")
-                return
+        Przewodnosc_warstwy = (0.183 * wydajnosc_pompowania) / parametrC
+        wspolczynnik_filtracji = Przewodnosc_warstwy / miazszosc_warstwy
 
-            # Konwertuj kolumnę "LEVEL" na liczby
-            self.data["LEVEL"] = self.data["LEVEL"].str.replace(',', '.', regex=True)
-            self.data["LEVEL"] = pd.to_numeric(self.data["LEVEL"], errors='coerce')
+        self.result_label.config(text=f"Przewodność warstwy (T) [m2/h]: {Przewodnosc_warstwy:.2f}" +
+                                      f"\nWspółczynnik filtracji (K) [m/h]: {wspolczynnik_filtracji:.2f}")
 
-            # Odejmij od kolumny "LEVEL" wartość początkowego zwierciadła wody
-            self.data.loc[start - 1:end - 1, "LEVEL"] -= poczatkowe_zwierciadlo
-
-            # Stwórz nową tabelę z przekonwertowanymi danymi
-            converted_data = self.data.iloc[start - 1:end]
-
-            # Debugging: Wyświetl przekształcone dane
-            print("Przekształcone dane:")
-            print(converted_data)
-
-            # Wyświetl nową tabelę pod pierwszą tabelą
-            self.display_converted_data(converted_data)
-        else:
-            messagebox.showerror("Błąd", "Wczytaj dane przed konwersją.")
-
-    def display_converted_data(self, data):
-        # Tworzenie nowego okna do wyświetlenia przekonwertowanych danych
-        converted_data_window = tk.Toplevel(self)
-        converted_data_window.title("Przekonwertowane dane")
-
-        # Kontener dla tabeli z marginesem z lewej strony
-        table_container = tk.Frame(converted_data_window)
-        table_container.pack(fill="both", expand=True)
-
-        # Margines z lewej strony
-        left_margin = tk.Label(table_container, text="", width=10)
-        left_margin.pack(side="left", fill="y")
-
-        converted_data_table_scroll = tk.Scrollbar(table_container, orient="vertical")
-        converted_data_table_scroll.pack(side="right", fill="y")
-
-        converted_data_table = ttk.Treeview(table_container, yscrollcommand=converted_data_table_scroll.set)
-        converted_data_table["columns"] = ("#", "Date", "Time", "LEVEL", "TEMPERATURE")
-        converted_data_table.heading("#1", text="#")
-        converted_data_table.heading("#2", text="Date")
-        converted_data_table.heading("#3", text="Time")
-        converted_data_table.heading("#4", text="LEVEL")
-        converted_data_table.heading("#5", text="TEMPERATURE")
-        converted_data_table.pack(fill="both", expand=True)
-
-        converted_data_table_scroll.config(command=converted_data_table.yview)
-
-        # Wstaw dane do tabeli w nowym oknie
-        for i, row in data.iterrows():
-            converted_data_table.insert("", "end",
-                                        values=(row["#"], row["Date"], row["Time"], row["LEVEL"], row["TEMPERATURE"]))
 
 if __name__ == "__main__":
     app = HydroApp()
